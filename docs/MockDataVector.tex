@@ -57,6 +57,7 @@
 \newcommand{\hMpc}{h^{-1}\,\mathrm{Mpc}}
 \newcommand{\hMsun}{h^{-1}\,M_{\odot}}
 \newcommand{\Bsel}{\mathcal{B}_{\rm sel}}
+\newcommand{\Bmis}{\mathcal{B}_{\rm mis}}
 \newcommand{\Bcal}{\mathcal{B}}
 \newcommand{\modname}[1]{\textcolor{kwcol}{\texttt{#1}}}
 \newcommand{\blk}[1]{\textcolor{datablockcol}{\texttt{#1}}}
@@ -89,10 +90,14 @@ C26 Appendix~C Eq.~C1 fitting function applied to the C19-binned stack
 stacks on the catalog redMaPPer outputs $(\texttt{LAMBDA\_CHISQ},
 \texttt{Z\_LAMBDA})$ and divides by a $(\log M, \ztr)$-matched random
 reference (Wu+2022, Costanzi+2026). The notebook also produces a binned
-number-count vector $N(\lob, \zob)$. Member-galaxy contamination
-(boost factor) is injected from the published DES~Y1 measurements
-(McClintock+2019), so the saved final shear
-$\gamma_t^{\rm mock,obs} = \Delta\Sigma_{\rm obs,C1}/B_{\rm Y1}\cdot\Sigma_{\rm crit}^{-1}$
+number-count vector $N(\lob, \zob)$. Two observational systematics are
+then injected into both routes' final shear: member-galaxy contamination
+(boost factor) from the published DES~Y1 measurements (McClintock+2019),
+and cluster miscentering (optical-finder center offset from the true
+halo center) from an offset-convolution model following Johnston+2007 /
+McClintock+2019 \S5.3--5.4, so the saved final shear
+$\gamma_t^{\rm mock,obs} = \Delta\Sigma_{\rm obs,C1}\,
+\Bcal_{\rm mis}^{\Delta\Sigma}/B_{\rm Y1}\cdot\Sigma_{\rm crit}^{-1}$
 mimics the raw uncorrected DES~Y1 data vector. All outputs are saved to
 \pyfile{output/MockDataVector.npz}; the headline plots embedded in
 this document live in \pyfile{output/figs/}.
@@ -112,9 +117,10 @@ The notebook executes the following stages in order:
 \modname{halo\_load} $\to$ \modname{photoz\_proxy} $\to$
 \modname{sample\_lambda\_true} $\to$ \modname{sample\_lambda\_obs} $\to$
 \modname{lensing\_inputs} $\to$ \modname{number\_counts} $\to$
-\modname{analytical\_C1} $\to$ \modname{boost\_factor} $\to$ 
+\modname{analytical\_C1} $\to$ \modname{boost\_factor} $\to$
 \modname{empirical\_mass\_match} $\to$
-\modname{jackknife\_covariance} $\to$ \modname{save\_npz}}}
+\modname{jackknife\_covariance} $\to$ \modname{miscentering} $\to$
+\modname{save\_npz}}}
 \end{center}
 
 The first four stages are the C19 forward model: select host halos above
@@ -126,7 +132,10 @@ $\Sigma_{\rm crit}^{-1}$ table, plus the catalog redMaPPer columns
 ($\texttt{LAMBDA\_CHISQ}, \texttt{Z\_LAMBDA}$) used by the empirical route.
 The two lensing-data-vector stages are independent and produce their
 outputs on the same DES~Y1 binning so the user can compare them
-side-by-side. After implementing the boost factor and calculating the covariance matrices, the final stage persists everything to
+side-by-side. After implementing the boost factor and calculating the
+covariance matrices, \modname{miscentering} (\S\ref{sec:miscentering})
+injects the center-misidentification bias into both routes' final shear,
+and the final stage persists everything to
 \pyfile{output/MockDataVector.npz}.
 
 % ============================================================================
@@ -562,6 +571,118 @@ Fig.~\ref{fig:emp-ratio}.}
 \end{figure}
 
 % ============================================================================
+\section{Miscentering: center misidentification}
+\label{sec:miscentering}
+
+\modname{Path}\,\pyfile{src/miscentering.py}. Applied once, at save time
+(\S\ref{sec:archive}), to both routes' final shear, so the
+\S\ref{sec:c1}/\S\ref{sec:emp} selection-bias diagnostics above stay
+uncontaminated by this independent systematic.
+
+\paragraph{Physical picture.} Optical cluster finders (redMaPPer) do not
+always identify the true halo center (3D potential minimum / BCG) as the
+lensing center. A fraction $1 - f_{\rm cen}$ of clusters have their
+assigned center offset from the truth by a 2D projected distance $R_s$.
+This systematically suppresses the measured $\Delta\Sigma(R)$ at small
+$R$, where the profile is cuspiest, and is a standard correction in every
+real DES cluster-lensing analysis (Johnston+2007; Ford+2014;
+Melchior+2017 \S4.3; McClintock+2019 \S5.3--5.4). Up to this point, every
+per-halo $\Sigma(R)/\Delta\Sigma(R)$ profile in this notebook is computed
+about the halo's \emph{true} center --- this section is what turns that
+into a center an optical finder would actually report.
+
+\paragraph{Offset distribution.} The offset population follows a Rayleigh
+law whose scale tracks the richness--radius relation (Rykoff+2012 /
+McClintock+2019 Eq.~25):
+\begin{equation}
+\label{eq:rlambda}
+  R_\lambda(\lambda, z) = \frac{1.0\,(\lambda/100)^{0.2}\,\hMpc}{1+z}
+  \ \text{(physical)},\qquad
+  \sigma_s = \tau\,R_\lambda,\qquad
+  P(R_s) = \frac{R_s}{\sigma_s^2}\,\exp\!\left(-\frac{R_s^2}{2\sigma_s^2}\right).
+\end{equation}
+
+\paragraph{Effect on $\Sigma(R)$.} For a fixed offset $R_s$, the
+azimuthally averaged miscentered surface density at projected radius $R$
+is the angular convolution of the correctly-centered profile
+(Yang+2006; Johnston+2007 Eq.~32):
+\begin{equation}
+\label{eq:sigma-mis-fixed}
+  \Sigma_{\rm mis}(R \mid R_s)
+  = \frac{1}{2\pi}\int_0^{2\pi}
+    \Sigma_{\rm cen}\!\left(\sqrt{R^2 + R_s^2 - 2RR_s\cos\theta}\right) d\theta,
+\end{equation}
+averaged over the offset population,
+\begin{equation}
+\label{eq:sigma-mis-avg}
+  \langle\Sigma_{\rm mis}(R)\rangle
+  = \int_0^\infty \Sigma_{\rm mis}(R \mid R_s)\,P(R_s)\,dR_s.
+\end{equation}
+
+\paragraph{Effect on $\Delta\Sigma(R)$ --- not the same convolution.}
+$\Delta\Sigma_{\rm mis}$ must be \emph{re-derived} from
+$\langle\Sigma_{\rm mis}\rangle$ via the usual mean-enclosed-density
+definition; convolution does not commute with the enclosed-mass integral,
+so applying Eq.~\eqref{eq:sigma-mis-fixed}--\eqref{eq:sigma-mis-avg}
+directly to $\Delta\Sigma_{\rm cen}$ would be wrong:
+\begin{equation}
+\label{eq:dsigma-from-sigma}
+  \bar\Sigma_{\rm mis}(<R) = \frac{2}{R^2}\int_0^R R'\,
+    \langle\Sigma_{\rm mis}(R')\rangle\,dR',\qquad
+  \Delta\Sigma_{\rm mis}(R) = \bar\Sigma_{\rm mis}(<R) - \langle\Sigma_{\rm mis}(R)\rangle.
+\end{equation}
+
+\paragraph{Observed (mixture) profile and the saved bias ratio.} The
+final observed stack mixes the correctly-centered and miscentered
+populations,
+\begin{equation}
+\label{eq:mis-mixture}
+  \Sigma_{\rm obs}(R) = f_{\rm cen}\,\Sigma_{\rm cen}(R)
+    + (1 - f_{\rm cen})\,\langle\Sigma_{\rm mis}(R)\rangle,\qquad
+  \Delta\Sigma_{\rm obs}(R) = f_{\rm cen}\,\Delta\Sigma_{\rm cen}(R)
+    + (1 - f_{\rm cen})\,\Delta\Sigma_{\rm mis}(R),
+\end{equation}
+expressed as a multiplicative bias in the same convention as
+$\Bcal_{\rm sel,C1}^{\Delta\Sigma}$ and $B_{\rm Y1\,data}$:
+\begin{equation}
+\label{eq:bmis}
+  \Bmis^{\Delta\Sigma}(R;\lambda,z) \equiv
+    \frac{\Delta\Sigma_{\rm obs}(R)}{\Delta\Sigma_{\rm cen}(R)}.
+\end{equation}
+Equations~\eqref{eq:sigma-mis-fixed}--\eqref{eq:dsigma-from-sigma} are
+evaluated numerically on each $(\lob, \zob)$ bin's \emph{native}
+15-point $\Sigma_{\rm cen}(R)$/$\Delta\Sigma_{\rm cen}(R)$ stack (not the
+11-point DES~Y1 boost grid, since the convolution in
+Eq.~\eqref{eq:sigma-mis-fixed} probes radii below the boost grid's
+$R_{\rm min} = 0.166$~Mpc for realistic offsets), log-log extrapolated
+below $0.0323$~Mpc to cover the cuspy inner profile.
+
+\paragraph{Parameters.} $(f_{\rm cen}, \tau)$ use illustrative DES~Y1
+redMaPPer-like defaults, \textbf{not calibrated against this Buzzard
+mock}: $\tau = 0.21$ and one $f_{\rm cen}$ per richness bin,
+\begin{equation*}
+  f_{\rm cen} \in \{0.75,\ 0.80,\ 0.85,\ 0.88\}\ \text{for}\
+  \lambda \in \{[20,30),\, [30,45),\, [45,60),\, [60,\infty)\}.
+\end{equation*}
+A regression check in \pyfile{src/miscentering.py} enforces $f_{\rm cen}
+= 1 \Rightarrow \Sigma_{\rm obs} \equiv \Sigma_{\rm cen}$,
+$\Delta\Sigma_{\rm obs} \equiv \Delta\Sigma_{\rm cen}$, validating the
+convolution and enclosed-mass machinery independent of the parameter
+choice.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\linewidth]{../output/figs/09_miscentering_bias.png}
+\caption{Miscentering bias $\Bmis^{\Delta\Sigma}(R)$ (Eq.~\ref{eq:bmis})
+on the analytical-route $\Delta\Sigma$ stack, per $(\lob, \zob)$ bin on
+the DES~Y1 grid. The bias dips below unity at small $R$ (the cuspy
+profile smeared out by the offset population) and relaxes back toward
+unity by a few Mpc, consistent with the literature shape (Johnston+2007
+Fig.~1; McClintock+2019 Fig.~5).}
+\label{fig:mis-bias}
+\end{figure}
+
+% ============================================================================
 \section{Output archive}
 \label{sec:archive}
 
@@ -602,12 +723,20 @@ Key & Shape & Content \\
 \blk{gamma\_t\_obs\_RM}    & $(N_\lambda, N_z, N_R)$ & $\lrm$-selected stack $\gamma_t$ (the observed signal) \\
 \blk{B\_sel\_emp}          & $(N_\lambda, N_z, N_R)$ & bootstrap-mean $\Bsel^{\rm emp}(R)$ \\
 \midrule
-\multicolumn{3}{l}{\textit{DES~Y1 boost factor + final mock-observed shears} (\S\ref{sec:boost})} \\
+\multicolumn{3}{l}{\textit{DES~Y1 boost factor} (\S\ref{sec:boost})} \\
 \blk{B\_data}                & $(N_\lambda, N_z, N_R)$ & measured DES~Y1 $B(R)$ \\
 \blk{B\_data\_err}           & $(N_\lambda, N_z, N_R)$ & 1-$\sigma$ error per radial bin \\
 \blk{B\_data\_cov}           & $(N_\lambda, N_z, N_R, N_R)$ & full radial covariance matrix per bin \\
-\blk{gamma\_t\_mock\_obs\_C1} & $(N_\lambda, N_z, N_R)$ & analytical (Matteo) shear with Y1 boost dilution \\
-\blk{gamma\_t\_mock\_obs\_RM} & $(N_\lambda, N_z, N_R)$ & empirical (Heidi) shear with Y1 boost dilution \\
+\midrule
+\multicolumn{3}{l}{\textit{Miscentering} (\S\ref{sec:miscentering}; illustrative defaults, not Buzzard-calibrated)} \\
+\blk{B\_mis\_DSigma}         & $(N_\lambda, N_z, N_R)$ & $\Bmis^{\Delta\Sigma}(R) = \Delta\Sigma_{\rm obs}/\Delta\Sigma_{\rm cen}$ \\
+\blk{B\_mis\_Sigma}          & $(N_\lambda, N_z, N_R)$ & same construction for $\Sigma(R)$ \\
+\blk{f\_cen\_mis}            & $(N_\lambda, N_z)$      & correctly-centered fraction used per bin \\
+\blk{tau\_mis}               & scalar                  & offset-scale parameter, $\sigma_s = \blk{tau\_mis}\times R_\lambda(\lambda,z)$ \\
+\midrule
+\multicolumn{3}{l}{\textit{Final mock-observed shears}} \\
+\blk{gamma\_t\_mock\_obs\_C1} & $(N_\lambda, N_z, N_R)$ & analytical (Matteo) shear $\times\,\Bmis^{\Delta\Sigma}$, with Y1 boost dilution \\
+\blk{gamma\_t\_mock\_obs\_RM} & $(N_\lambda, N_z, N_R)$ & empirical (Heidi) shear $\times\,\Bmis^{\Delta\Sigma}$, with Y1 boost dilution \\
 \bottomrule
 \end{tabular}
 \caption{Output-archive layout. Default shapes are $(4, 3)$ for the
@@ -668,6 +797,11 @@ and remains in its previous, unconverted physical-Mpc convention.
   \item \textbf{Single Y3 realisation.} The §8.1 empirical ratio is
     computed on one Y3 realisation; Wu+2022 averages 12 Y1 + 1 Y3
     realisations and is correspondingly tighter.
+  \item \textbf{Miscentering parameters are illustrative, not fit to
+    Buzzard.} \S\ref{sec:miscentering} injects $(f_{\rm cen}, \tau)$ as
+    DES~Y1 redMaPPer-like defaults (\texttt{F\_CEN\_DEFAULT},
+    \texttt{TAU\_DEFAULT} in \pyfile{src/miscentering.py}); no
+    Buzzard-specific centering calibration exists yet.
 \end{itemize}
 
 % ============================================================================
@@ -686,6 +820,10 @@ and remains in its previous, unconverted physical-Mpc convention.
     Wu+22 / Esteves $(M, z)$-matched random reference builder.
   \item \pyfile{src/radial\_bins\_phys\_mpc.py} --- the 15-bin physical
     radial grid \blk{rp\_phys\_mpc}.
+  \item \pyfile{src/miscentering.py} --- the offset-convolution
+    miscentering model (\S\ref{sec:miscentering}): $\Sigma$/$\Delta\Sigma$
+    convolution, enclosed-mass re-derivation, and the
+    $\Bmis^{\Delta\Sigma}(R)$/$\Bmis^{\Sigma}(R)$ bias ratios.
   \item \pyfile{data/prj\_params\_DESY3\_lss\_lin\_dep\_getdist\_v1.txt}
     --- 15 posterior samples of the 10 C19 projection coefficients.
   \item \pyfile{src/fileLoc.py} --- machine-resolved path table for the
@@ -713,7 +851,13 @@ and remains in its previous, unconverted physical-Mpc convention.
   \item Wu et al.\ 2022, arXiv:2203.05416. Fig.~2 (selection-bias panel
     grid) and Appendix~B (mass--redshift weighted reference).
   \item McClintock et al.\ 2019, MNRAS 482, 1352 --- DES~Y1 cluster
-    binning convention used throughout.
+    binning convention used throughout; \S5.3--5.4 is the miscentering
+    model adopted in \S\ref{sec:miscentering}.
+  \item Johnston et al.\ 2007, arXiv:0709.1159 --- Eq.~32, the
+    offset-convolution formula for a miscentered $\Sigma(R)$.
+  \item Rykoff et al.\ 2012, ApJ 746, 178 --- the redMaPPer
+    richness--radius relation $R_\lambda(\lambda)$ used to set the
+    miscentering offset scale.
 \end{itemize}
 
 \end{document}

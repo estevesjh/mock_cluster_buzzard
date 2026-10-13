@@ -26,6 +26,12 @@ Member-galaxy contamination is injected from the published DES Y1 boost-factor
 profiles in `data/boost_factor/profiles/` (McClintock+2019); the saved final
 shear `gamma_t_mock_obs` mimics the raw uncorrected DES Y1 data vector.
 
+Cluster miscentering (optical-finder center offset from the true halo
+center) is injected as a third multiplicative systematic, `src/miscentering.py`
+(§8.4): a fraction of clusters have their lensing center offset by a 2D
+distance drawn from a Rayleigh distribution tied to the richness-radius
+relation, following Johnston+2007 / McClintock+2019 §5.3-5.4.
+
 ## Outputs
 
 Saved by the final notebook cell to `output/MockDataVector.npz`. With
@@ -52,8 +58,12 @@ $0.166$ to $15.80$ Mpc):
 | `B_data`               | $(4, 3, 11)$   | DES Y1 measured boost factor $B(R)$                              |
 | `B_data_err`           | $(4, 3, 11)$   | $1\sigma$ error per radial bin                                  |
 | `B_data_cov`           | $(4, 3, 11, 11)$| full radial covariance per bin                                  |
-| `gamma_t_mock_obs_C1`  | $(4, 3, 11)$   | analytical route $\times \mathcal{B}^{\Delta\Sigma}_\mathrm{C1} / B_\mathrm{data}$ |
-| `gamma_t_mock_obs_RM`  | $(4, 3, 11)$   | empirical route $/ B_\mathrm{data}$                             |
+| `B_mis_DSigma`         | $(4, 3, 11)$   | miscentering bias $\mathcal{B}_\mathrm{mis}^{\Delta\Sigma}(R) = \Delta\Sigma_\mathrm{obs}/\Delta\Sigma_\mathrm{cen}$ (§8.4) |
+| `B_mis_Sigma`          | $(4, 3, 11)$   | miscentering bias on $\Sigma(R)$, same construction             |
+| `f_cen_mis`            | $(4, 3)$       | correctly-centered fraction used per bin (illustrative DES Y1 redMaPPer-like default, not Buzzard-calibrated) |
+| `tau_mis`              | scalar         | offset-scale parameter, $\sigma_s = \mathtt{tau\_mis}\times R_\lambda(\lambda,z)$ |
+| `gamma_t_mock_obs_C1`  | $(4, 3, 11)$   | analytical route $\times \mathcal{B}^{\Delta\Sigma}_\mathrm{C1} \times \mathcal{B}_\mathrm{mis}^{\Delta\Sigma} / B_\mathrm{data}$ |
+| `gamma_t_mock_obs_RM`  | $(4, 3, 11)$   | empirical route $\times \mathcal{B}_\mathrm{mis}^{\Delta\Sigma} / B_\mathrm{data}$ |
 
 Plus bin metadata: `radii_phys_mpc`, `lambda_bins`, `z_bin_min`, `z_bin_max`.
 
@@ -142,6 +152,7 @@ are loaded as the posterior mean of the 15 rows in
 | §8.1 | Selection-bias ratio $\mathcal{B}_\mathrm{sel}^\mathrm{emp}(R)$ with bootstrap bands; null test |
 | §8.2 | Tangential shear: redMaPPer-selected vs mass-matched random |
 | §8.3 | Shear-stack covariance via spatial jackknife ($K=50$ KMeans patches) |
+| §8.4 | Miscentering injection — $\mathcal{B}_\mathrm{mis}^{\Delta\Sigma}(R)$ (`src/miscentering.py`) |
 | §9 | Save the data vector to `output/MockDataVector.npz` |
 
 ## How to run
@@ -163,6 +174,7 @@ mock_cluster_buzzard/
 │   ├── costanzi_selection.py       ← C26 Eq. 15 sampler + C19 Eq. 6 mixture
 │   ├── stacked_profile_weighted_by_mass_redshift.py  ← Wu+22 (M, z) match
 │   ├── radial_bins_phys_mpc.py     ← rp_phys_mpc 15-bin radial grid
+│   ├── miscentering.py             ← offset-convolution miscentering model (§8.4)
 │   └── fileLoc.py                  ← machine-resolved paths to Buzzard inputs
 ├── data/
 │   └── prj_params_DESY3_lss_lin_dep_getdist_v1.txt   ← C19 projection coefs
@@ -203,8 +215,12 @@ Repo-local:
   row-by-row covariance propagation is not done.
 - The photo-$z$ kernel is a Gaussian $\sigma_z = 0.01\,(1+z_\mathrm{tr})$
   proxy rather than the full DES Y3 redshift-kernel of Myles+2021.
-- Masking fraction $f_\mathrm{msk}$ and centering mis-identification are
-  loaded but unused here.
+- Masking fraction $f_\mathrm{msk}$ (an area-masking systematic, loaded
+  from the C19 projection file as `a_fmsk`/`b_fmsk`) is still unused.
+  Centering mis-identification is now injected (§8.4), but its
+  $(f_\mathrm{cen}, \tau)$ parameters are illustrative DES Y1
+  redMaPPer-like defaults (`F_CEN_DEFAULT`, `TAU_DEFAULT` in
+  `src/miscentering.py`), not calibrated against this Buzzard mock.
 - The §8 empirical ratio is computed on **one** Y3 realisation; Wu+2022
   Fig. 2 averages 12 Y1 + 1 Y3 realisations and is correspondingly
   tighter.
