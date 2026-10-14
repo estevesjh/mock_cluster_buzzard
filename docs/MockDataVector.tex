@@ -95,7 +95,7 @@ then injected into both routes' final shear: member-galaxy contamination
 (boost factor) from the published DES~Y1 measurements (McClintock+2019),
 and cluster miscentering (optical-finder center offset from the true
 halo center) from an offset-convolution model following Johnston+2007 /
-McClintock+2019 \S5.3--5.4, so the saved final shear
+McClintock+2019 \S5.2 (Eq.~36--39, Table~1), so the saved final shear
 $\gamma_t^{\rm mock,obs} = \Delta\Sigma_{\rm obs,C1}\,
 \Bcal_{\rm mis}^{\Delta\Sigma}/B_{\rm Y1}\cdot\Sigma_{\rm crit}^{-1}$
 mimics the raw uncorrected DES~Y1 data vector. All outputs are saved to
@@ -582,41 +582,46 @@ uncontaminated by this independent systematic.
 \paragraph{Physical picture.} Optical cluster finders (redMaPPer) do not
 always identify the true halo center (3D potential minimum / BCG) as the
 lensing center. A fraction $1 - f_{\rm cen}$ of clusters have their
-assigned center offset from the truth by a 2D projected distance $R_s$.
-This systematically suppresses the measured $\Delta\Sigma(R)$ at small
-$R$, where the profile is cuspiest, and is a standard correction in every
-real DES cluster-lensing analysis (Johnston+2007; Ford+2014;
-Melchior+2017 \S4.3; McClintock+2019 \S5.3--5.4). Up to this point, every
-per-halo $\Sigma(R)/\Delta\Sigma(R)$ profile in this notebook is computed
-about the halo's \emph{true} center --- this section is what turns that
-into a center an optical finder would actually report.
+assigned center offset from the truth by a 2D projected distance
+$R_{\rm mis}$. This systematically suppresses the measured
+$\Delta\Sigma(R)$ at small $R$, where the profile is cuspiest, and is a
+standard correction in every real DES cluster-lensing analysis
+(Johnston+2007; Ford+2014; Melchior+2017 \S4.3; McClintock+2019 \S5.2).
+Up to this point, every per-halo $\Sigma(R)/\Delta\Sigma(R)$ profile in
+this notebook is computed about the halo's \emph{true} center --- this
+section is what turns that into a center an optical finder would
+actually report.
 
-\paragraph{Offset distribution.} The offset population follows a Rayleigh
-law whose scale tracks the richness--radius relation (Rykoff+2012 /
-McClintock+2019 Eq.~25):
+\paragraph{Offset distribution.} The offset population follows a
+Gamma($k$=2) law (McClintock+2019 Eq.~39) whose scale tracks the
+richness--radius relation (Rykoff+2012 / McClintock+2019 Eq.~25):
 \begin{equation}
 \label{eq:rlambda}
   R_\lambda(\lambda, z) = \frac{1.0\,(\lambda/100)^{0.2}\,\hMpc}{1+z}
   \ \text{(physical)},\qquad
-  \sigma_s = \tau\,R_\lambda,\qquad
-  P(R_s) = \frac{R_s}{\sigma_s^2}\,\exp\!\left(-\frac{R_s^2}{2\sigma_s^2}\right).
+  \theta = \tau\,R_\lambda,\qquad
+  P(R_{\rm mis}) = \frac{R_{\rm mis}}{\theta^2}\,\exp\!\left(-\frac{R_{\rm mis}}{\theta}\right).
 \end{equation}
+This is deliberately more heavily-tailed than the Rayleigh distribution
+used in the earlier Simet+2017/Melchior+2017 miscentering models;
+McClintock+2019 adopt it following the X-ray-vs-redMaPPer-center
+comparison of Zhang+2018a / von der Linden+2018.
 
-\paragraph{Effect on $\Sigma(R)$.} For a fixed offset $R_s$, the
+\paragraph{Effect on $\Sigma(R)$.} For a fixed offset $R_{\rm mis}$, the
 azimuthally averaged miscentered surface density at projected radius $R$
 is the angular convolution of the correctly-centered profile
-(Yang+2006; Johnston+2007 Eq.~32):
+(Yang+2006; Johnston+2007 Eq.~32; McClintock+2019 Eq.~37):
 \begin{equation}
 \label{eq:sigma-mis-fixed}
-  \Sigma_{\rm mis}(R \mid R_s)
+  \Sigma_{\rm mis}(R \mid R_{\rm mis})
   = \frac{1}{2\pi}\int_0^{2\pi}
-    \Sigma_{\rm cen}\!\left(\sqrt{R^2 + R_s^2 - 2RR_s\cos\theta}\right) d\theta,
+    \Sigma_{\rm cen}\!\left(\sqrt{R^2 + R_{\rm mis}^2 - 2RR_{\rm mis}\cos\phi}\right) d\phi,
 \end{equation}
-averaged over the offset population,
+averaged over the offset population (McClintock+2019 Eq.~38),
 \begin{equation}
 \label{eq:sigma-mis-avg}
   \langle\Sigma_{\rm mis}(R)\rangle
-  = \int_0^\infty \Sigma_{\rm mis}(R \mid R_s)\,P(R_s)\,dR_s.
+  = \int_0^\infty \Sigma_{\rm mis}(R \mid R_{\rm mis})\,P(R_{\rm mis})\,dR_{\rm mis}.
 \end{equation}
 
 \paragraph{Effect on $\Delta\Sigma(R)$ --- not the same convolution.}
@@ -657,13 +662,19 @@ Eq.~\eqref{eq:sigma-mis-fixed} probes radii below the boost grid's
 $R_{\rm min} = 0.166$~Mpc for realistic offsets), log-log extrapolated
 below $0.0323$~Mpc to cover the cuspy inner profile.
 
-\paragraph{Parameters.} $(f_{\rm cen}, \tau)$ use illustrative DES~Y1
-redMaPPer-like defaults, \textbf{not calibrated against this Buzzard
-mock}: $\tau = 0.21$ and one $f_{\rm cen}$ per richness bin,
-\begin{equation*}
-  f_{\rm cen} \in \{0.75,\ 0.80,\ 0.85,\ 0.88\}\ \text{for}\
-  \lambda \in \{[20,30),\, [30,45),\, [45,60),\, [60,\infty)\}.
-\end{equation*}
+\paragraph{Parameters.} $(f_{\rm cen}, \tau) = (0.75,\ 0.17)$ are the
+central values of McClintock+2019 Table~1's Gaussian \emph{priors} on
+$(f_{\rm mis}, \tau) = (0.25\pm0.08,\ 0.17\pm0.04)$ --- a single
+\textbf{global} pair, not richness-dependent (only $R_\lambda$, and hence
+the offset scale $\theta$, varies with richness/redshift). Those priors
+were themselves adopted from the X-ray-vs-redMaPPer-center comparison of
+Zhang+2018a / von der Linden+2018; McClintock+2019 report their own
+weak-lensing posterior on these two parameters equals the prior (i.e.\
+weakly constrained by their data), so the prior central values are the
+right numbers to cite here, not a stand-in for some better-measured
+posterior. They are still \textbf{not calibrated against this Buzzard
+mock} specifically --- same caveat as the other "known simplification"
+systematics in this document.
 A regression check in \pyfile{src/miscentering.py} enforces $f_{\rm cen}
 = 1 \Rightarrow \Sigma_{\rm obs} \equiv \Sigma_{\rm cen}$,
 $\Delta\Sigma_{\rm obs} \equiv \Delta\Sigma_{\rm cen}$, validating the
@@ -728,11 +739,11 @@ Key & Shape & Content \\
 \blk{B\_data\_err}           & $(N_\lambda, N_z, N_R)$ & 1-$\sigma$ error per radial bin \\
 \blk{B\_data\_cov}           & $(N_\lambda, N_z, N_R, N_R)$ & full radial covariance matrix per bin \\
 \midrule
-\multicolumn{3}{l}{\textit{Miscentering} (\S\ref{sec:miscentering}; illustrative defaults, not Buzzard-calibrated)} \\
+\multicolumn{3}{l}{\textit{Miscentering} (\S\ref{sec:miscentering}; McClintock+2019 Table~1 prior, not Buzzard-calibrated)} \\
 \blk{B\_mis\_DSigma}         & $(N_\lambda, N_z, N_R)$ & $\Bmis^{\Delta\Sigma}(R) = \Delta\Sigma_{\rm obs}/\Delta\Sigma_{\rm cen}$ \\
 \blk{B\_mis\_Sigma}          & $(N_\lambda, N_z, N_R)$ & same construction for $\Sigma(R)$ \\
-\blk{f\_cen\_mis}            & $(N_\lambda, N_z)$      & correctly-centered fraction used per bin \\
-\blk{tau\_mis}               & scalar                  & offset-scale parameter, $\sigma_s = \blk{tau\_mis}\times R_\lambda(\lambda,z)$ \\
+\blk{f\_cen\_mis}            & $(N_\lambda, N_z)$      & correctly-centered fraction, global constant broadcast per bin \\
+\blk{tau\_mis}               & scalar                  & dimensionless offset parameter, $\theta = \blk{tau\_mis}\times R_\lambda(\lambda,z)$ \\
 \midrule
 \multicolumn{3}{l}{\textit{Final mock-observed shears}} \\
 \blk{gamma\_t\_mock\_obs\_C1} & $(N_\lambda, N_z, N_R)$ & analytical (Matteo) shear $\times\,\Bmis^{\Delta\Sigma}$, with Y1 boost dilution \\
@@ -797,11 +808,12 @@ and remains in its previous, unconverted physical-Mpc convention.
   \item \textbf{Single Y3 realisation.} The §8.1 empirical ratio is
     computed on one Y3 realisation; Wu+2022 averages 12 Y1 + 1 Y3
     realisations and is correspondingly tighter.
-  \item \textbf{Miscentering parameters are illustrative, not fit to
-    Buzzard.} \S\ref{sec:miscentering} injects $(f_{\rm cen}, \tau)$ as
-    DES~Y1 redMaPPer-like defaults (\texttt{F\_CEN\_DEFAULT},
-    \texttt{TAU\_DEFAULT} in \pyfile{src/miscentering.py}); no
-    Buzzard-specific centering calibration exists yet.
+  \item \textbf{Miscentering parameters are a literature prior, not fit
+    to Buzzard.} \S\ref{sec:miscentering} injects $(f_{\rm cen}, \tau) =
+    (0.75, 0.17)$ (\texttt{F\_CEN\_DEFAULT}, \texttt{TAU\_DEFAULT} in
+    \pyfile{src/miscentering.py}), the McClintock+2019 Table~1 Gaussian
+    prior central values (themselves from Zhang+2018a / von der Linden+2018);
+    no Buzzard-specific centering calibration exists yet.
 \end{itemize}
 
 % ============================================================================
@@ -851,13 +863,17 @@ and remains in its previous, unconverted physical-Mpc convention.
   \item Wu et al.\ 2022, arXiv:2203.05416. Fig.~2 (selection-bias panel
     grid) and Appendix~B (mass--redshift weighted reference).
   \item McClintock et al.\ 2019, MNRAS 482, 1352 --- DES~Y1 cluster
-    binning convention used throughout; \S5.3--5.4 is the miscentering
-    model adopted in \S\ref{sec:miscentering}.
+    binning convention used throughout; \S5.2 (Eq.~36--39, Table~1) is
+    the miscentering model and prior adopted in \S\ref{sec:miscentering}.
   \item Johnston et al.\ 2007, arXiv:0709.1159 --- Eq.~32, the
     offset-convolution formula for a miscentered $\Sigma(R)$.
   \item Rykoff et al.\ 2012, ApJ 746, 178 --- the redMaPPer
     richness--radius relation $R_\lambda(\lambda)$ used to set the
     miscentering offset scale.
+  \item Zhang et al.\ 2018a (as cited in McClintock et al.\ 2019) and
+    von der Linden et al.\ 2018 --- the X-ray-vs-redMaPPer-center
+    comparison that sets the Gamma($k$=2) miscentering-offset
+    distribution and the $(f_{\rm mis}, \tau)$ priors of Table~1.
 \end{itemize}
 
 \end{document}

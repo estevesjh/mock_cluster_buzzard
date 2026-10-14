@@ -29,8 +29,9 @@ shear `gamma_t_mock_obs` mimics the raw uncorrected DES Y1 data vector.
 Cluster miscentering (optical-finder center offset from the true halo
 center) is injected as a third multiplicative systematic, `src/miscentering.py`
 (§8.4): a fraction of clusters have their lensing center offset by a 2D
-distance drawn from a Rayleigh distribution tied to the richness-radius
-relation, following Johnston+2007 / McClintock+2019 §5.3-5.4.
+distance drawn from a Gamma($k$=2) distribution tied to the richness-radius
+relation, following Johnston+2007 Eq. 32 / McClintock+2019 §5.2 (Eq. 36-39,
+Table 1).
 
 ## Outputs
 
@@ -60,8 +61,8 @@ $0.166$ to $15.80$ Mpc):
 | `B_data_cov`           | $(4, 3, 11, 11)$| full radial covariance per bin                                  |
 | `B_mis_DSigma`         | $(4, 3, 11)$   | miscentering bias $\mathcal{B}_\mathrm{mis}^{\Delta\Sigma}(R) = \Delta\Sigma_\mathrm{obs}/\Delta\Sigma_\mathrm{cen}$ (§8.4) |
 | `B_mis_Sigma`          | $(4, 3, 11)$   | miscentering bias on $\Sigma(R)$, same construction             |
-| `f_cen_mis`            | $(4, 3)$       | correctly-centered fraction used per bin (illustrative DES Y1 redMaPPer-like default, not Buzzard-calibrated) |
-| `tau_mis`              | scalar         | offset-scale parameter, $\sigma_s = \mathtt{tau\_mis}\times R_\lambda(\lambda,z)$ |
+| `f_cen_mis`            | $(4, 3)$       | correctly-centered fraction, global constant broadcast per bin ($1-f_\mathrm{mis}$, McClintock+2019 Table 1 prior) |
+| `tau_mis`              | scalar         | dimensionless offset parameter (McClintock+2019 Table 1 prior), $\theta = \mathtt{tau\_mis}\times R_\lambda(\lambda,z)$ |
 | `gamma_t_mock_obs_C1`  | $(4, 3, 11)$   | analytical route $\times \mathcal{B}^{\Delta\Sigma}_\mathrm{C1} \times \mathcal{B}_\mathrm{mis}^{\Delta\Sigma} / B_\mathrm{data}$ |
 | `gamma_t_mock_obs_RM`  | $(4, 3, 11)$   | empirical route $\times \mathcal{B}_\mathrm{mis}^{\Delta\Sigma} / B_\mathrm{data}$ |
 
@@ -217,10 +218,16 @@ Repo-local:
   proxy rather than the full DES Y3 redshift-kernel of Myles+2021.
 - Masking fraction $f_\mathrm{msk}$ (an area-masking systematic, loaded
   from the C19 projection file as `a_fmsk`/`b_fmsk`) is still unused.
-  Centering mis-identification is now injected (§8.4), but its
-  $(f_\mathrm{cen}, \tau)$ parameters are illustrative DES Y1
-  redMaPPer-like defaults (`F_CEN_DEFAULT`, `TAU_DEFAULT` in
-  `src/miscentering.py`), not calibrated against this Buzzard mock.
+  Centering mis-identification is now injected (§8.4) using
+  $(f_\mathrm{cen}, \tau) = (0.75, 0.17)$ (`F_CEN_DEFAULT`, `TAU_DEFAULT`
+  in `src/miscentering.py`) — the central values of McClintock+2019
+  Table 1's Gaussian *priors* on $(f_\mathrm{mis}, \tau) =
+  (0.25\pm0.08,\,0.17\pm0.04)$, themselves adopted from the
+  Zhang+2018a / von der Linden+2018 X-ray comparison. McClintock+2019
+  report their own weak-lensing posterior on these two parameters equals
+  the prior, so this is the right number to cite, not a stand-in for a
+  better-measured value — but it is still not calibrated against this
+  Buzzard mock specifically.
 - The §8 empirical ratio is computed on **one** Y3 realisation; Wu+2022
   Fig. 2 averages 12 Y1 + 1 Y3 realisations and is correspondingly
   tighter.
