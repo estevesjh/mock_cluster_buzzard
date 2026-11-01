@@ -78,11 +78,12 @@ This document is the technical reference for
 mock that layers the Costanzi+2026 (C26) optical selection systematics on
 top of the raw simulation outputs, on the DES~Y1 cluster binning
 ($\lambda \in \{20, 30, 45, 60, \infty\}$,
-$z \in \{[0.20, 0.33),\allowbreak\,
+$z \in \{[0.20, 0.322),\allowbreak\,
 [0.37, 0.50),\allowbreak\, [0.50, 0.65)\}$, which are the
-standard DES~Y1 redshift edges with the upper edge of $z_0$ pulled in from $0.35 \to 0.33$ and the
+standard DES~Y1 redshift edges with the upper edge of $z_0$ pulled in from $0.35 \to 0.322$ and the
 lower edge of $z_1$ pushed out from $0.35 \to 0.37$ to skip the
-Buzzard $0.33 \le z < 0.37$ box-junction seam). The data vector is constructed along
+Buzzard $0.33 \le z < 0.37$ box-junction seam and the incomplete
+$0.322 \le z < 0.33$ slice of the profile catalog). The data vector is constructed along
 \emph{two parallel routes} that share the same Costanzi+2019 (C19) forward model upstream
 and the same lensing geometry: an \textbf{analytical} closure based on the
 C26 Appendix~C Eq.~C1 fitting function applied to the C19-binned stack
@@ -160,13 +161,18 @@ the $0.33 \le z < 0.37$ simulation-box seam, then require $0.20 \le \ztr
 
 \paragraph{DES~Y1 binning (used everywhere).} Both abundance and lensing
 bins follow the DES~Y1 cluster edges (Costanzi+2019, McClintock+2019),
-with the central two redshift edges shifted inward by $\pm 0.02$ to
-skip the Buzzard box-junction seam at $0.33 \le z < 0.37$:
+with the central two redshift edges shifted to skip the Buzzard
+box-junction seam at $0.33 \le z < 0.37$:
 \begin{equation*}
   \texttt{LBDBINS}    = \{20,\, 30,\, 45,\, 60,\, 500\},\qquad
   \texttt{ZMIN\_LIST} = \{0.20,\, 0.37,\, 0.50\},\qquad
-  \texttt{ZMAX\_LIST} = \{0.33,\, 0.50,\, 0.65\}.
+  \texttt{ZMAX\_LIST} = \{0.322,\, 0.50,\, 0.65\}.
 \end{equation*}
+The $z_0$ upper edge is $0.322$, not $0.33$: in the profile catalog
+(\texttt{buzzard-1.9.8\_3y3a\_run\_halos\_profiles.fit}) 59\% of halos with
+$0.322 \le z < 0.33$ have \texttt{pid = -10} (profile not measured) and fail
+the \texttt{pid == -1} cut, so that slice is incomplete (completeness is
+1.000 at every other redshift); ending $z_0$ at $0.322$ removes the gap.
 The $500$ caps the open $[60, \infty)$ richness range. There are
 $N_\lambda \times N_z = 4 \times 3 = 12$ bins. The seam volume is
 $\sim 5\%$ of $z_0$ and $\sim 13\%$ of $z_1$ on the published Y1

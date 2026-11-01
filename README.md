@@ -128,9 +128,14 @@ Counts and lensing share the DES Y1 cluster binning (Costanzi+2019,
 McClintock+2019):
 
 - `LBDBINS = [20, 30, 45, 60, 500]` (4 richness bins; `500` caps $[60, \infty)$).
-- `ZMIN_LIST = [0.20, 0.37, 0.50]`, `ZMAX_LIST = [0.33, 0.50, 0.65]` — the
-  inner edges are pulled to 0.33/0.37 (from a nominal 0.35) to skip the Buzzard
-  $0.33 \le z \le 0.37$ box-junction seam, dropped at halo-load time.
+- `ZMIN_LIST = [0.20, 0.37, 0.50]`, `ZMAX_LIST = [0.322, 0.50, 0.65]` — the
+  inner edges are pulled in from a nominal 0.35 to skip the Buzzard
+  $0.33 \le z \le 0.37$ box-junction seam, dropped at halo-load time. The
+  $z_0$ upper edge sits at 0.322 rather than 0.33: in the profile catalog
+  (`buzzard-1.9.8_3y3a_run_halos_profiles.fit`) 59% of halos with
+  $0.322 \le z < 0.33$ have `pid = -10` (profile not measured), so the
+  `pid == -1` cut leaves that slice incomplete (completeness is 1.000 at
+  every other redshift). Ending $z_0$ at 0.322 removes the gap.
 
 Halo selection mirrors `0-MakeMock.ipynb`: `pid == -1`, $0 \le \cos i \le 1$,
 drop the Buzzard $0.33 \le z < 0.37$ box seam, then require
