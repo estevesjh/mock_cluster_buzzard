@@ -109,22 +109,23 @@ def sample_lambda_true(M, z, rng=None):
 
 # ---------------------------------------------------------------------------
 # Projection-parameter file (`prj_params_DESY3_lss_lin_dep_getdist_v1.txt`):
-#   shape (N_samples, 10), columns
+#   shape (15, 10), columns
 #   (a_tau, b_tau, a_mu, b_mu, a_sig, b_sig, a_fprj, b_fprj, a_fmsk, b_fmsk).
-# Rows are getdist MCMC posterior samples (NOT redshift knots) — the per-z
-# evolution is already encoded in the linear coefficients, see C19 Eq. A8.
-# In practice we collapse the rows to the posterior mean via
-# ``load_prj_posterior_mean``; ``load_prj_interpolators`` is kept for users
-# who want to scan a single posterior sample.
+# The 15 rows are REDSHIFT KNOTS on PRJ_Z_BINS = linspace(0.10, 0.80, 15), not
+# posterior samples: the coefficients trend smoothly with row index (a_mu runs
+# -0.36 -> -2.69 with Spearman rho = -0.98 against z; b_sig, b_mu, b_fprj also
+# trend), and y3_cluster_cpp's PrjParams reads the same table on the same 15-node
+# z grid.  Use ``load_prj_interpolators`` (linear in z).  ``load_prj_posterior_mean``
+# averages the knots into one z-independent kernel and is kept only to reproduce
+# older mocks.
 # ---------------------------------------------------------------------------
 def load_prj_interpolators(path=DEFAULT_PRJ_PARAM_FILE, row=None):
     """Return a dict of ``z -> coefficient`` callables for the 10 columns.
 
-    If ``row`` is an integer we return a constant-in-z function for that
-    posterior sample. The legacy branch with ``row=None`` is preserved for
-    backward compatibility but is NOT the recommended entry point — use
-    ``load_prj_posterior_mean`` instead, which collapses the chain to its
-    posterior mean.
+    With ``row=None`` (the default and the recommended entry point) each
+    coefficient is interpolated linearly in z across the 15 knots on
+    PRJ_Z_BINS.  If ``row`` is an integer, that single knot is returned as a
+    constant-in-z function.
     """
     params = np.loadtxt(path).T  # shape (10, 15)
     if row is None:
@@ -265,10 +266,11 @@ def b_sel_one_halo(lob, ltr, z, interp):
 # Convenience: posterior-mean projection interpolator
 # ---------------------------------------------------------------------------
 def load_prj_posterior_mean(path=DEFAULT_PRJ_PARAM_FILE):
-    """Collapse the 15 posterior-sample rows to a single posterior-mean set
-    of constants (useful when the 15 rows are interpreted as samples rather
-    than redshift knots). Returns the same interpolator-dict signature so
-    the rest of the pipeline does not change.
+    """Average the 15 redshift knots into one z-independent set of constants.
+
+    NOT the physical kernel: the rows are z knots (see the note above
+    ``load_prj_interpolators``).  Kept only to reproduce mocks made before
+    2026-11-01, which used it.  Returns the same interpolator-dict signature.
     """
     params = np.loadtxt(path)           # (15, 10)
     mean = params.mean(axis=0)          # (10,)
