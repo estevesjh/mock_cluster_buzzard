@@ -68,6 +68,30 @@ $0.166$ to $15.80$ Mpc):
 
 Plus bin metadata: `radii_phys_mpc`, `lambda_bins`, `z_bin_min`, `z_bin_max`.
 
+### Pipeline-ready data vector
+
+A second final cell writes `output/MockDataVector_pipeline.npz` in the
+y3_cluster_cpp `likelihood_cp` layout. $\Delta\Sigma$ is stacked directly on
+the pipeline's comoving radial grid (10 points), so the jackknife covariance is
+full rank there. Per halo, physical $\Delta\Sigma(R_\mathrm{phys})$ at the true
+redshift is mapped to $R = R_\mathrm{phys}(1+z)h$ [Mpc/h] and
+$\Delta\Sigma/h/(1+z)^2$ [$h\,M_\odot/\mathrm{pc}^2$], then log-log
+interpolated. There is no $\Sigma_\mathrm{crit}^{-1}$, $\mathcal{B}_\mathrm{sel}$,
+miscentering or boost factor in it. Bins are z-major: `bin = 4 * z_bin + lambda_bin`,
+shear index `bin * 10 + r`.
+
+| key              | shape        | meaning |
+|------------------|--------------|---------|
+| `data_NC`        | $(12,)$      | `NC` (Y1-area rescaled), z-major |
+| `invcov_NC`      | $(12,)$      | diagonal inverse Poisson variance of `data_NC` |
+| `data_Shear`     | $(120,)$     | stacked $\Delta\Sigma$ [$h\,M_\odot/\mathrm{pc}^2$], comoving |
+| `cov_Shear`      | $(120, 120)$ | jackknife covariance of `data_Shear` (block-diagonal in bins) |
+| `invcov_Shear`   | $(120, 120)$ | inverse of `cov_Shear` |
+| `r_perp_cMpc_h`  | $(10,)$      | comoving radii, $0.2$–$5$ Mpc/h, log-spaced |
+| `n_jk`           | scalar       | number of jackknife patches (50) |
+| `lambda_rep`     | $(4, 3)$     | bin-mean $\lambda^\mathrm{ob}$ |
+| `z_rep`          | $(4, 3)$     | bin-mean $z^\mathrm{ob}$ |
+
 ### Units & h-convention
 
 All `gamma_t_*` arrays are dimensionless ($\gamma_t = \Delta\Sigma \times
@@ -128,9 +152,18 @@ Hard-coded in `src/costanzi_selection.py`.
 | `z_piv`    | 0.4544            |
 
 Projection coefficients ($a_\tau, b_\tau, a_{f_\mathrm{prj}}, b_{f_\mathrm{prj}}, \dots$)
-are loaded as the posterior mean of the 15 rows in
-`data/prj_params_DESY3_lss_lin_dep_getdist_v1.txt` (downloaded from
-`MCostanzi/SelectionBias`).
+are read from `data/prj_params_DESY3_lss_lin_dep_getdist_v1.txt` (downloaded
+from `MCostanzi/SelectionBias`) with `load_prj_interpolators`. The 15 rows are
+**redshift knots** on `PRJ_Z_BINS = linspace(0.10, 0.80, 15)`, not posterior
+samples: the coefficients trend smoothly with row index ($a_\mu$ runs
+$-0.36 \to -2.69$, Spearman $\rho = -0.98$; $b_\sigma$, $b_\mu$,
+$b_{f_\mathrm{prj}}$ also trend), and y3_cluster_cpp's `PrjParams` reads the
+same table on the same 15-node grid. Each coefficient is interpolated linearly
+in $z$, so the mean projection boost $\langle\lambda^\mathrm{ob} -
+\lambda^\mathrm{tr}\rangle$ rises with redshift (at $\lambda^\mathrm{tr} = 45$:
+3.6 at $z = 0.2$, 7.6 at $z = 0.65$). Mocks made before 2026-11-01 averaged
+the rows into one $z$-independent kernel (`load_prj_posterior_mean`, kept only
+to reproduce them).
 
 ## Notebook structure
 
@@ -154,7 +187,7 @@ are loaded as the posterior mean of the 15 rows in
 | §8.2 | Tangential shear: redMaPPer-selected vs mass-matched random |
 | §8.3 | Shear-stack covariance via spatial jackknife ($K=50$ KMeans patches) |
 | §8.4 | Miscentering injection — $\mathcal{B}_\mathrm{mis}^{\Delta\Sigma}(R)$ (`src/miscentering.py`) |
-| §9 | Save the data vector to `output/MockDataVector.npz` |
+| §9 | Save the data vector to `output/MockDataVector.npz`; pipeline-ready `output/MockDataVector_pipeline.npz` |
 
 ## How to run
 
@@ -184,6 +217,7 @@ mock_cluster_buzzard/
 │   └── MockDataVector.pdf      ← compiled PDF (embeds vital plots)
 └── output/                         ← produced by running the notebook
     ├── MockDataVector.npz
+    ├── MockDataVector_pipeline.npz  ← y3_cluster_cpp likelihood_cp layout
     └── figs/                       ← headline PNGs (7 figures)
 ```
 
@@ -199,8 +233,8 @@ External Buzzard inputs, all resolved via `FileLocs(machine='nersc')` in
 
 Repo-local:
 
-- `data/prj_params_DESY3_lss_lin_dep_getdist_v1.txt` — Costanzi posterior-sample
-  table for the projection model (15 rows, 10 coefficients).
+- `data/prj_params_DESY3_lss_lin_dep_getdist_v1.txt` — Costanzi projection-model
+  table: 15 redshift knots on `linspace(0.10, 0.80, 15)` × 10 coefficients.
 - `data/boost_factor/profiles/full-unblind-v2-mcal-zmix_y1clust_l{l}_z{z}_zpdf_boost{,_cov}.dat`
   — DES Y1 measured boost factor $B(R)$ profiles + radial covariance per
   $(\lambda, z)$ bin. Used by §7.3 of the notebook.
@@ -212,8 +246,11 @@ Repo-local:
   measurement matching our cluster binning. A Y3 boost-factor
   measurement is not yet released; when it is, swap files in
   `data/boost_factor/profiles/`.
-- Projection parameters use the **posterior mean** of the C19 chain;
-  row-by-row covariance propagation is not done.
+- Projection parameters are fixed at the tabulated $z$-knot values
+  (interpolated linearly in $z$); their uncertainty is not propagated.
+- §4 draws $\lambda^\mathrm{ob}$ with the projection kernel evaluated at the
+  observed redshift (`mock['redshift_obs']`), while the counts are binned on
+  true $z$.
 - The photo-$z$ kernel is a Gaussian $\sigma_z = 0.01\,(1+z_\mathrm{tr})$
   proxy rather than the full DES Y3 redshift-kernel of Myles+2021.
 - Masking fraction $f_\mathrm{msk}$ (an area-masking systematic, loaded
